@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../auth/loginpage.dart';
+import 'auth/loginpage.dart';
 
 void main() {
   runApp(const AbsensiSaya());

@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:camera/camera.dart';
+import 'lokasiservice.dart';
+import 'kamerapage.dart';
 
 class PresensiPage extends StatefulWidget {
   const PresensiPage({super.key});
@@ -11,14 +14,88 @@ class _PresensiPageState extends State<PresensiPage> {
   int selectedTab = 0;
 
   bool presensiBerhasil = false;
+  bool sedangMemuatLokasi = false;
 
   final Color hijau = const Color(0xFF91BFAF);
+  final LokasiService lokasiService = LokasiService();
 
-  void mulaiPresensi() {
+  String statusLokasi = 'Lokasi belum diperiksa';
+  String? latitude;
+  String? longitude;
+
+  // CEK LOKASI
+  Future<void> cekLokasi() async {
+    setState(() {
+      sedangMemuatLokasi = true;
+      statusLokasi = 'Memeriksa lokasi...';
+    });
+
+    try {
+      final lokasi = await lokasiService.ambilLokasi();
+
+      if (!mounted) return;
+
+      setState(() {
+        sedangMemuatLokasi = false;
+
+        if (lokasi != null &&
+            lokasi.latitude != null &&
+            lokasi.longitude != null) {
+          latitude = lokasi.latitude.toString();
+          longitude = lokasi.longitude.toString();
+          statusLokasi = 'Lokasi berhasil ditemukan';
+        } else {
+          latitude = null;
+          longitude = null;
+          statusLokasi = 'Izin atau GPS belum tersedia';
+        }
+      });
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() {
+        sedangMemuatLokasi = false;
+        statusLokasi = 'Gagal mendapatkan lokasi';
+      });
+    }
+  }
+
+  // MULAI PRESENSI
+  Future<void> mulaiPresensi() async {
+    await cekLokasi();
+
+    if (!mounted) return;
+
+    if (latitude == null || longitude == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Aktifkan GPS dan berikan izin lokasi terlebih dahulu.',
+          ),
+        ),
+      );
+      return;
+    }
+
+    // MEMBUKA HALAMAN KAMERA
+    final XFile? foto = await Navigator.push<XFile>(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const KameraPage(),
+      ),
+    );
+
+    if (!mounted || foto == null) return;
+
     setState(() {
       presensiBerhasil = true;
     });
 
+    tampilkanDialogBerhasil();
+  }
+
+  // DIALOG BERHASIL
+  void tampilkanDialogBerhasil() {
     showDialog(
       context: context,
       builder: (context) {
@@ -44,7 +121,7 @@ class _PresensiPageState extends State<PresensiPage> {
               ),
               const SizedBox(height: 8),
               const Text(
-                'Data presensi kamu berhasil dicatat.',
+                'Foto berhasil diambil dan lokasi berhasil ditemukan.',
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 20),
@@ -80,7 +157,6 @@ class _PresensiPageState extends State<PresensiPage> {
         backgroundColor: Colors.white,
         elevation: 0,
       ),
-
       body: Column(
         children: [
           Container(
@@ -92,7 +168,6 @@ class _PresensiPageState extends State<PresensiPage> {
               ],
             ),
           ),
-
           Expanded(
             child: selectedTab == 0
                 ? halamanAbsen()
@@ -103,6 +178,7 @@ class _PresensiPageState extends State<PresensiPage> {
     );
   }
 
+  // TAB BUTTON
   Widget tabButton(String judul, int index) {
     bool aktif = selectedTab == index;
 
@@ -137,6 +213,7 @@ class _PresensiPageState extends State<PresensiPage> {
     );
   }
 
+  // HALAMAN ABSEN
   Widget halamanAbsen() {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
@@ -150,17 +227,15 @@ class _PresensiPageState extends State<PresensiPage> {
               color: Color(0xFF263B34),
             ),
           ),
-
           const SizedBox(height: 8),
-
           const Text(
             'Posisikan wajah kamu di dalam area pemindaian',
             textAlign: TextAlign.center,
             style: TextStyle(color: Colors.grey),
           ),
-
           const SizedBox(height: 25),
 
+          // AREA VERIFIKASI WAJAH
           Container(
             height: 250,
             width: 250,
@@ -188,9 +263,7 @@ class _PresensiPageState extends State<PresensiPage> {
               fontSize: 16,
             ),
           ),
-
           const SizedBox(height: 8),
-
           const Text(
             'Pastikan wajah terlihat jelas dan tidak tertutup.',
             textAlign: TextAlign.center,
@@ -202,6 +275,7 @@ class _PresensiPageState extends State<PresensiPage> {
 
           const SizedBox(height: 25),
 
+          // INFORMASI LOKASI
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(16),
@@ -209,38 +283,56 @@ class _PresensiPageState extends State<PresensiPage> {
               color: Colors.white,
               borderRadius: BorderRadius.circular(15),
             ),
-            child: const Row(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(
-                  Icons.location_on,
-                  color: Color(0xFF91BFAF),
-                  size: 28,
+                const Row(
+                  children: [
+                    Icon(
+                      Icons.location_on,
+                      color: Color(0xFF91BFAF),
+                      size: 28,
+                    ),
+                    SizedBox(width: 12),
+                    Text(
+                      'Lokasi Presensi',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
                 ),
-                SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Lokasi Presensi',
-                        style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      SizedBox(height: 5),
-                      Text(
-                        'SMK Negeri 1 Bukateja',
-                        style: TextStyle(
-                          color: Colors.grey,
-                          fontSize: 13,
-                        ),
-                      ),
-                    ],
+                const SizedBox(height: 10),
+                const Text(
+                  'SMK Negeri 1 Bukateja',
+                  style: TextStyle(
+                    color: Colors.grey,
+                    fontSize: 13,
                   ),
                 ),
-                Icon(
-                  Icons.check_circle,
-                  color: Colors.green,
+                const SizedBox(height: 8),
+                Text(
+                  statusLokasi,
+                  style: const TextStyle(
+                    color: Colors.grey,
+                    fontSize: 13,
+                  ),
+                ),
+                if (latitude != null && longitude != null) ...[
+                  const SizedBox(height: 8),
+                  Text('Latitude: $latitude'),
+                  Text('Longitude: $longitude'),
+                ],
+                const SizedBox(height: 8),
+                TextButton.icon(
+                  onPressed:
+                      sedangMemuatLokasi ? null : cekLokasi,
+                  icon: const Icon(Icons.refresh),
+                  label: Text(
+                    sedangMemuatLokasi
+                        ? 'Memeriksa...'
+                        : 'Periksa Lokasi',
+                  ),
                 ),
               ],
             ),
@@ -248,11 +340,13 @@ class _PresensiPageState extends State<PresensiPage> {
 
           const SizedBox(height: 25),
 
+          // TOMBOL PRESENSI
           SizedBox(
             width: double.infinity,
             height: 52,
             child: ElevatedButton(
-              onPressed: mulaiPresensi,
+              onPressed:
+                  sedangMemuatLokasi ? null : mulaiPresensi,
               style: ElevatedButton.styleFrom(
                 backgroundColor: hijau,
                 foregroundColor: Colors.white,
@@ -274,6 +368,7 @@ class _PresensiPageState extends State<PresensiPage> {
     );
   }
 
+  // HALAMAN RIWAYAT
   Widget halamanRiwayat() {
     return ListView(
       padding: const EdgeInsets.all(20),
@@ -285,9 +380,7 @@ class _PresensiPageState extends State<PresensiPage> {
             fontWeight: FontWeight.bold,
           ),
         ),
-
         const SizedBox(height: 15),
-
         itemRiwayat('23 November 2026', 'Hadir', '07.00 WIB'),
         itemRiwayat('22 November 2026', 'Hadir', '06.55 WIB'),
         itemRiwayat('21 November 2026', 'Hadir', '07.05 WIB'),
